@@ -1,3 +1,4 @@
+mod decode;
 mod encode;
 
 use std::{
@@ -18,7 +19,7 @@ pub trait RespEncode {
 pub trait RespDecode: Sized {
     const PREFIX: &'static str;
     fn decode(buf: &mut BytesMut) -> Result<Self, RespError>;
-    fn expect_length(buf: &[u8]) -> Result<usize, RespFrame>;
+    fn expect_length(buf: &[u8]) -> Result<usize, RespError>;
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -41,7 +42,7 @@ pub enum RespError {
 }
 
 #[enum_dispatch(RespEncode)]
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum RespFrame {
     SimpleString(SimpleString),
     Error(SimpleError),
@@ -58,32 +59,32 @@ pub enum RespFrame {
     Set(RespSet),
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd)]
-pub struct SimpleError(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub struct SimpleError(pub String);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd)]
-pub struct SimpleString(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub struct SimpleString(pub String);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd)]
-pub struct BulkString(Vec<u8>);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub struct BulkString(pub Vec<u8>);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct RespNull;
 
-#[derive(Debug, PartialEq, PartialOrd)]
-pub struct RespArray(Vec<RespFrame>);
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct RespArray(pub Vec<RespFrame>);
 
-#[derive(Debug, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct RespNullArray;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct RespNullBulkString;
 
-#[derive(Debug, PartialEq, PartialOrd)]
-pub struct RespMap(BTreeMap<String, RespFrame>);
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct RespMap(pub BTreeMap<String, RespFrame>);
 
-#[derive(Debug, PartialEq, PartialOrd)]
-pub struct RespSet(Vec<RespFrame>);
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub struct RespSet(pub Vec<RespFrame>);
 
 impl Deref for SimpleString {
     type Target = String;
@@ -196,6 +197,18 @@ impl From<&str> for SimpleError {
 impl From<&str> for BulkString {
     fn from(value: &str) -> Self {
         BulkString(value.as_bytes().to_vec())
+    }
+}
+
+impl AsRef<str> for SimpleString {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl AsRef<[u8]> for BulkString {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }
 
