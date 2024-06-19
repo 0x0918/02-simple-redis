@@ -384,6 +384,7 @@ dependencies = [
  "dashmap",
  "enum_dispatch",
  "futures",
+ "lazy_static",
  "thiserror",
  "tokio-util",
  "tracing",
