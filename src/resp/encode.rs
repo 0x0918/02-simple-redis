@@ -5,7 +5,7 @@ use crate::{
 
 use super::RespEncode;
 
-const BUF_CAP: usize = 4096;
+pub const BUF_CAP: usize = 4096;
 
 impl RespEncode for SimpleString {
     fn encode(self) -> Vec<u8> {

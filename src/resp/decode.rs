@@ -2,12 +2,14 @@ use anyhow::Result;
 use bytes::{Buf, BytesMut};
 
 use crate::{
-    BulkString, RespArray, RespDecode, RespError, RespFrame, RespMap, RespNull, RespNullArray,
+    BulkString, RespDecode, RespError, RespFrame, RespMap, RespNull, RespNullArray,
     RespNullBulkString, RespSet, SimpleError, SimpleString,
 };
 
+use super::array::RespArray;
+
 const CRLF: &[u8] = b"\r\n";
-const CRLF_LEN: usize = CRLF.len();
+pub const CRLF_LEN: usize = CRLF.len();
 
 impl RespDecode for RespFrame {
     const PREFIX: &'static str = "";
@@ -62,6 +64,7 @@ impl RespDecode for RespFrame {
                 let frame = RespSet::decode(buf)?;
                 Ok(frame.into())
             }
+            None => Err(RespError::NotComplete),
             _ => Err(RespError::InvalidFrameType(format!(
                 "expect_length: unknown frame type: {:?}",
                 buf
@@ -186,28 +189,6 @@ impl RespDecode for BulkString {
     }
 }
 
-impl RespDecode for RespArray {
-    const PREFIX: &'static str = "*";
-    fn decode(buf: &mut bytes::BytesMut) -> Result<Self, RespError> {
-        let (end, len) = parse_length(buf, Self::PREFIX)?;
-        let total_len = calc_total_length(buf, end, len, Self::PREFIX)?;
-        if buf.len() < total_len {
-            return Err(RespError::NotComplete);
-        }
-        buf.advance(end + CRLF_LEN);
-        let mut frames = Vec::with_capacity(len);
-        for _ in 0..len {
-            frames.push(RespFrame::decode(buf)?);
-        }
-        Ok(RespArray::new(frames))
-    }
-
-    fn expect_length(buf: &[u8]) -> Result<usize, RespError> {
-        let (end, len) = parse_length(buf, Self::PREFIX)?;
-        calc_total_length(buf, end, len, Self::PREFIX)
-    }
-}
-
 impl RespDecode for f64 {
     const PREFIX: &'static str = ",";
     fn decode(buf: &mut bytes::BytesMut) -> Result<Self, RespError> {
@@ -279,7 +260,7 @@ impl RespDecode for RespSet {
     }
 }
 
-fn extract_fixed_data(
+pub fn extract_fixed_data(
     buf: &mut BytesMut,
     expect: &str,
     expect_type: &str,
@@ -298,7 +279,7 @@ fn extract_fixed_data(
     Ok(())
 }
 
-fn extract_simple_frame_data(buf: &[u8], prefix: &str) -> Result<usize, RespError> {
+pub fn extract_simple_frame_data(buf: &[u8], prefix: &str) -> Result<usize, RespError> {
     if buf.len() < 3 {
         return Err(RespError::NotComplete);
     }
@@ -313,7 +294,7 @@ fn extract_simple_frame_data(buf: &[u8], prefix: &str) -> Result<usize, RespErro
     Ok(end)
 }
 
-fn find_crlf(buf: &[u8], nth: usize) -> Option<usize> {
+pub fn find_crlf(buf: &[u8], nth: usize) -> Option<usize> {
     let mut count = 0;
     for i in 1..buf.len() - 1 {
         if buf[i] == b'\r' && buf[i + 1] == b'\n' {
@@ -326,13 +307,18 @@ fn find_crlf(buf: &[u8], nth: usize) -> Option<usize> {
     None
 }
 
-fn parse_length(buf: &[u8], prefix: &str) -> Result<(usize, usize), RespError> {
+pub fn parse_length(buf: &[u8], prefix: &str) -> Result<(usize, usize), RespError> {
     let end = extract_simple_frame_data(buf, prefix)?;
     let s = String::from_utf8_lossy(&buf[prefix.len()..end]);
     Ok((end, s.parse()?))
 }
 
-fn calc_total_length(buf: &[u8], end: usize, len: usize, prefix: &str) -> Result<usize, RespError> {
+pub fn calc_total_length(
+    buf: &[u8],
+    end: usize,
+    len: usize,
+    prefix: &str,
+) -> Result<usize, RespError> {
     let mut total = end + CRLF_LEN;
     let mut data = &buf[total..];
 
@@ -366,8 +352,8 @@ mod tests {
     use bytes::{BufMut, BytesMut};
 
     use crate::{
-        BulkString, RespArray, RespDecode, RespError, RespMap, RespNull, RespNullArray,
-        RespNullBulkString, RespSet, SimpleError, SimpleString,
+        resp::array::RespArray, BulkString, RespDecode, RespError, RespMap, RespNull,
+        RespNullArray, RespNullBulkString, RespSet, SimpleError, SimpleString,
     };
 
     use super::{calc_total_length, parse_length};
